@@ -35,65 +35,71 @@
 %modified by Patrick McInerney
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function my_DM(varargin)
+function DissimilarityMeasureModule(varargin)
 if nargin == 1
   alt_config = varargin{1};
 else
   alt_config = [];
 end
 %%%%% Main Variables
-conf = my_CBIR_config(alt_config);
+conf = CBIR_config(alt_config);
 
 
 
 %%%% Global settings
-classSize = conf.classSize;
-total_im = conf.totalImageCount;
-segments = conf.numSegments;
-cells = conf.numCells;
-numParameters = conf.numParameters;
-paramNames = conf.imgParameters;
+numSegments = conf.numSegments;
+numCells = conf.numCells;
+numFeatures = conf.numFeatures;
+imgFeatureNames = conf.imgFeatureNames;
 dataSet = conf.dataSet;
-FVPath = conf.FVPath;
+FDPath = conf.FDPath;
 imageClassLabelsPath = conf.imageClassLabelsPath;
-DM_outputFolder = config_ops.DM_outputDir;
+DM_outputFolder = conf.DM_outputFolder;
 if ~exist(DM_outputFolder,'dir')
     mkdir(DM_outputFolder);
 end
-imgParam = conf.imgParameters;
 %%%%DM specific settings
 distanceFunctions = conf.DM_distanceFunctions;
 distanceNames = conf.DM_distanceNames;
 numDistances=conf.DM_numDistances;             %Number of different distances
 tang_thres=conf.DM_tang_thres;           %tangent angle (in degrees) for thresholding comp$
 hardThresholds=conf.DM_component_thresholds;
-
-%hardcoded for 8 classes
+MDS_plotColors = conf.DM_MDS_plotColors;
 %space at the end of each entry is important
-classColors = {'\color{red} ','\color{green} ','\color{blue} ','\color{yellow} ','\color{magenta} ','\color{gray} ','\color{orange} ','\color{black} '};
-classColorLabels = repmat(classColors,classSize,1);
-classColorLabels = reshape(classColorLabels,1,total_im);
-imNums = arrayfun(@num2str,1:total_im,'UniformOutput',false);
-MDS_plot_labels = cellfun(@horzcat,classColorLabels,imNums,'UniformOutput',false);
 
 %If there is need to re-run a section  (DEVELOPER MODE)  Default all should be 1
 plt=conf.DM_plot;                        %0 for plots , 1 for no plots
 weka_write=conf.DM_weka_write;           %0 for no weka writing, 1 for weka writing
-%%%%%%%%%%%%%%%%%%%%%% END OF GLOBAL VARIABLES
 
-%% Get Data from the FE files to manipulate
-
-%%FV is (image, parameter, cell)
-[FV, imageClassLabels] = loadData(FVPath,imageClassLabelsPath);
+[FD, imageClassLabels] = loadData(FDPath,imageClassLabelsPath);
 classNames = unique(imageClassLabels);
+numImages = length(imageClassLabels);
+numClasses = length(classNames);
 disp('data loaded');
+%%%%%%%%%%%%%%%%%%%%%% End of Configuration
+
+%format proper string from 0-255 RGB values
+derp = num2cell(MDS_plotColors/255,2);
+
+formattedMDS_plotColors = cellfun(@(x)sprintf('\\color[rgb]{%f,%f,%f} ',x),derp,'unif',false); % space is important for concatenation
+
+classColorLabels = cell(size(imageClassLabels));
+for classCounter = 1:numClasses
+    % pick out all the images for a class
+    className = classNames(classCounter);
+    classNameRep = repmat(className,size(imageClassLabels));
+    classIndices = cellfun(@strcmp,classNameRep,imageClassLabels);
+    classColorLabels(classIndices)=formattedMDS_plotColors(classCounter);
+end
+imNums = arrayfun(@num2str,1:numImages,'UniformOutput',false);
+MDS_plot_labels = cellfun(@horzcat,classColorLabels,imNums,'UniformOutput',false);
 
 %%Parameters loop
-for curr_param=1:numParameters  %for each parameter
+for curr_param=1:numFeatures  %for each parameter
 % for curr_param=1  %for each parameter
   %% Manipulation of Feature Vectors
   % grab one parameter's data from the full array (original Array is param,image,cell)
-  single_parameter_data = squeeze(FV(:,:,curr_param));
+  single_parameter_data = squeeze(FD(:,:,curr_param));
   %divide each image's values by the sum of values for that image
   single_parameter_data = bsxfun(@rdivide,single_parameter_data,sum(single_parameter_data,2));
   %avoid zeros
@@ -106,7 +112,7 @@ for curr_param=1:numParameters  %for each parameter
       m=squareform(pdist(single_parameter_data,distanceFunctions{distCounter}));   
     catch E
       disp('error in distance calculation');
-      fprintf(1,'   param: %s\n',paramNames{curr_param});
+      fprintf(1,'   param: %s\n',imgFeatureNames{curr_param});
       fprintf(1,'   dist: %s\n',distanceNames{distCounter});
       disp(E.message);
       disp('Skipping MDS and output');
@@ -120,12 +126,11 @@ for curr_param=1:numParameters  %for each parameter
       try
         MDS_projection = cmdscale(m);
       catch E
-        disp('error in MDS calculation');
-        fprintf(1,'   param: %s\n',paramNames{curr_param});
-        fprintf(1,'   dist: %s\n',distanceNames{distCounter});
-        disp(E.message);
-        disp('skipping output');
-        fprintf('\n');
+        warning(strcat( 'error in MDS calculation\n',...
+                sprintf('   param: %s\n',imgFeatureNames{curr_param}),...
+                sprintf('   dist: %s\n',distanceNames{distCounter}),...
+                        E.message, '\n',...
+                        'skipping output'));
         skipOutput = 1;
 %       rethrow(E);
       end
@@ -141,73 +146,74 @@ for curr_param=1:numParameters  %for each parameter
         Points = a*exp(b*x);
         Slopes = a*b*exp(b*x); % derivative of ae^(bx) is abe^(bx)
         %% PLOTS
-        if ~plt
-            %do nothing
-        else
+        if plt ~= runStatus.skip
         experimentLabel_DataDist  = horzcat(dataSet,' Distance - ',distanceNames{distCounter});
-        experimentLabel_ParamGrid = horzcat('-Feature-',imgParam{curr_param},'-',int2str(segments),'x',int2str(segments));
+        experimentLabel_ParamGrid = horzcat('-Feature-',imgFeatureNames{curr_param},'-',int2str(numSegments),'x',int2str(numSegments));
         experimentLabel_DistAndParam = horzcat(experimentLabel_DataDist,experimentLabel_ParamGrid);
         experimentLabel_PlotType = {' MDS map for '                            ,' 3D MDS map for '                                    ,' Components Plot-',...
                                     ' Sum of Components Plot-'                 ,' Scaled Image Plot '                                 ,' Grayscaled Image Plot ',...
                                     ' Exponential Curve fit for Sum Components',' Slopes of Exponential Curve fit for Sum Components '                           };
           for iplotType = 1:8
-            h = figure();
-            set(h, 'Visible', 'off')
-            if iplotType == 1
-              %% 2D MDS PLOT
-              plot(MDS_projection(:,1),MDS_projection(:,2),'LineStyle','none');
-              axis(max(abs(MDS_projection(:))) * [-1.1,1.1,-1.1,1.1]); axis('square');
-              try
-                text(MDS_projection(:,1),MDS_projection(:,2),MDS_plot_labels,'HorizontalAlignment','left');
-              catch E
-                  disp(size(MDS_projection));
-                  disp(size(MDS_plot_labels));
-                  rethrow(E);
-              end
-              %draw lines on the x and y axes
-              hx = graph2d.constantline(0, 'LineStyle','-','Color',[.7 .7 .7]);
-              changedependvar(hx,'x');
-              hy = graph2d.constantline(0,'LineStyle','-','Color',[.7 .7 .7]);
-              changedependvar(hy,'y');
-            elseif iplotType == 2
-              %% 3D MDS PLOT
-              plot3(MDS_projection(:,1),MDS_projection(:,2),MDS_projection(:,3),'LineStyle','none');
-              text(MDS_projection(:,1),MDS_projection(:,2),MDS_projection(:,3),MDS_plot_labels,'HorizontalAlignment','left');
-              grid on;
-            elseif iplotType == 3
-              %% Components PLOT
-              plot(maxMDSVals');
-            elseif iplotType == 4
-              %% SUM of components PLOT
-              plot(sumMDSVals);
-            elseif iplotType == 5
-              %% COLOR distance matrix PLOT
-              imagesc(m);
-              colorbar;
-            elseif iplotType == 6 
-              %% GRAYSCALE distance matrix PLOT
-              imagesc(m)
-              colormap(gray);
-              colorbar;
-            elseif iplotType == 7
-              %% Exponential Curve Fitting on sum componenents PLOT
-              hold on
-              plot(x,sumMDSVals,'x')
-              plot(x,Points,'b-');
-              hold off
-            elseif iplotType == 8
-              %% Slopes of fit curve PLOT
-              plot(Slopes)
-            end
             filename = [experimentLabel_DataDist,experimentLabel_PlotType{iplotType},experimentLabel_ParamGrid];
             filepath = fullfile(DM_outputFolder,filename);
-            plotTitle = horzcat(experimentLabel_DataDist,experimentLabel_PlotType{iplotType},imgParam{curr_param});
+            if exist(filepath,'file') && plt == runStatus.runIfMissing
+                continue
+            end
+            h = figure();
+            set(h, 'Visible', 'off')
+            switch iplotType
+                case 1
+                    %% 2D MDS PLOT
+                    axis(max(abs(MDS_projection(:))) * [-1.1,1.1,-1.1,1.1]); axis('square');
+                    try
+                        text(MDS_projection(:,1),MDS_projection(:,2),MDS_plot_labels,'HorizontalAlignment','left');
+                    catch E
+                        disp(size(MDS_projection));
+                        disp(size(MDS_plot_labels));
+                        rethrow(E);
+                    end
+                    %draw lines on the x and y axes
+                    hx = graph2d.constantline(0, 'LineStyle','-','Color',[.7 .7 .7]);
+                    changedependvar(hx,'x');
+                    hy = graph2d.constantline(0,'LineStyle','-','Color',[.7 .7 .7]);
+                    changedependvar(hy,'y');
+                case 2
+                    %% 3D MDS PLOT
+                    plot3(MDS_projection(:,1),MDS_projection(:,2),MDS_projection(:,3),'LineStyle','none');
+                    text(MDS_projection(:,1),MDS_projection(:,2),MDS_projection(:,3),MDS_plot_labels,'HorizontalAlignment','left');
+                    grid on;
+                case 3
+                    %% Components PLOT
+                    plot(maxMDSVals');
+                case 4
+                    %% SUM of components PLOT
+                    plot(sumMDSVals);
+                case 5
+                    %% COLOR distance matrix PLOT
+                    imagesc(m);
+                    colorbar;
+                case 6
+                    %% GRAYSCALE distance matrix PLOT
+                    imagesc(m)
+                    colormap(gray);
+                    colorbar;
+                case 7
+                    %% Exponential Curve Fitting on sum componenents PLOT
+                    hold on
+                    plot(x,sumMDSVals,'x')
+                    plot(x,Points,'b-');
+                    hold off
+                case 8
+                    %% Slopes of fit curve PLOT
+                    plot(Slopes)
+            end
+            plotTitle = horzcat(experimentLabel_DataDist,experimentLabel_PlotType{iplotType},imgFeatureNames{curr_param});
             title(char(plotTitle));
             saveas(h,filepath,'jpg');
             close(h);
           end
         end %End Plotting section
-        if weka_write %% Weka part
+        if weka_write ~= runStatus.skip %% Weka part
             % take some number of the MDS values for each image and write
             % them into an arff file for classification testing
             %% Tangent based threshold
@@ -219,7 +225,7 @@ for curr_param=1:numParameters  %for each parameter
             numDims_tangent = find(slopeAngle >= tang_thres,1);
             if isempty(numDims_tangent)   % if the threshold is too restrictive
                 disp('error in tangent method');
-                numDims_tangent=cells-1;  % grab cells-1 dimensions (why?)
+                numDims_tangent=numCells-1;  % grab cells-1 dimensions (why?)
             end
             component_thresholds = [numDims_tangent, hardThresholds];
             % use a flag to adjust the labeling for the first output
@@ -233,6 +239,9 @@ for curr_param=1:numParameters  %for each parameter
               end
               WekaFilename = strcat(WekaLabel,'.arff');
               WekaFileFullPath = fullfile(DM_outputFolder,WekaFilename);
+              if exist(WekaFileFullPath,'file') && weka_write == runStatus.runIfMissing
+                  continue
+              end
               MDSParamWekaLabels = arrayfun(@num2str, 1:numComponents, 'unif', 0); % just use 1,2,... for parameter names
               % we take the top MDS values (from the potential 63) for each image
               try
@@ -240,7 +249,7 @@ for curr_param=1:numParameters  %for each parameter
               catch E
                 disp(size(MDS_projection));
                 disp(numComponents);
-                disp(imgParam{curr_param});
+                disp(imgFeatureNames{curr_param});
                 disp(distCounter);
     %             X = MDS_projection
     %             save(
@@ -254,15 +263,5 @@ for curr_param=1:numParameters  %for each parameter
     end % ouput section
   end  % distances Loop
 end  %Parameters loop
-% function makeAGodDamnPlot()
-%     h = figure();
-%     set(h, 'Visible', 'off');
-%     plotTitle = [experimentLabel_DataDist,experimentLabel_PlotType{iplotType},experimentLabel_ParamGrid];
-%     
-%     filepath = fullfile(DM_outputFolder,plotTitle);
-%     title(char(plotTitle));
-%     saveas(h,filepath,'jpg');
-%     close(h);
-% end % plotting function
-disp('Dissimilarity Measure Module Demo has been completed. Check your output folder for results');
-%end% end DM function
+disp('Dissimilarity Measure Module has completed. Check your output folder for results');
+end % end DM function

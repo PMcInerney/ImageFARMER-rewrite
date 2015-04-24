@@ -27,7 +27,7 @@
 %  Notes on this DEMO:
 %  http://www.jmbanda.com/Framework/Demo/
 
-function my_AE(varargin)
+function AttributeEvaluationModule(varargin)
 
     if nargin == 1
       alt_config = varargin{1};
@@ -36,43 +36,34 @@ function my_AE(varargin)
     end
 
     %%%%% Main Variables
-    config_ops = my_CBIR_config(alt_config);
-    numClasses = config_ops.numClasses;
-    classSize = config_ops.classSize;
-    numParameters = config_ops.numParameters;
+    config_ops = CBIR_config(alt_config);
+    numFeatures = config_ops.numFeatures;
     dataSet = config_ops.dataSet;
-    FVPath = config_ops.FVPath;
+    dataSetForPlots = config_ops.dataSetForPlots;
+    FDPath = config_ops.FDPath;
     imageClassLabelsPath = config_ops.imageClassLabelsPath;
-    %Save to path
     AE_outputDir = config_ops.AE_outputDir;
     if ~exist(AE_outputDir,'dir')
         mkdir(AE_outputDir);
     end
-    imgParam = config_ops.imgParameters;
-    %^used for plotting axis labels
-
-    %%%%%%%%End of variable Configuration%%%%%%%
-    % the expected histogram array in Juan's code is 
-    % 10        1600          64
-    % The FV is 
-    % 1600    64    10
-
-
-    %% Actual Code
-    [FV, imageClassLabels] = loadData(FVPath,imageClassLabelsPath);
+    imgFeatureNames = config_ops.imgFeatureNames;
+    [FD, imageClassLabels] = loadData(FDPath,imageClassLabelsPath);
     classNames = unique(imageClassLabels);
-tic
+    numClasses = length(classNames);
+    % end of configuration
+
     %% Calculate average between-image correlation
-    range1 = 1;
-    range2 = classSize;  %class size
-    averageCorrelation = zeros(numClasses,numParameters,1); % the average correlation among values of a single parameter for a single class
+    averageCorrelation = zeros(numClasses,numFeatures,1); % the average correlation among values of a single parameter for a single class
     for classCounter = 1:numClasses
-        for param=1:numParameters %for each parameter
-            imageCorrelations = pdist(FV(range1:range2,:,param),'correlation');
-            averageCorrelation(classCounter,param) = 2*sum(imageCorrelations)/classSize^2; % calculate mean distance of non-squareform distance matrix
+        % pick out all the images for a class
+        className = classNames(classCounter);
+        classNameRep = repmat(className,size(imageClassLabels));
+        classIndices = cellfun(@strcmp,classNameRep,imageClassLabels);
+        classSize = sum(classIndices);
+        for feat=1:numFeatures %for each parameter
+            imageCorrelations = pdist(FD(classIndices,:,feat),'correlation');
+            averageCorrelation(classCounter,feat) = 2*sum(imageCorrelations)/classSize^2; % calculate mean distance of non-squareform distance matrix
         end
-        range1 = range1 + classSize; % shift class markers
-        range2 = range2 + classSize;
     end
 
     %% Make and save the intra class plots
@@ -83,10 +74,10 @@ tic
         savePlot('IntraClass',classCounter,intraCorrDistMat)
     end
     %% Make and save the inter class plots
-    derp = zeros(numClasses,numParameters,numClasses);
-    for param = 1:numParameters
-        X = averageCorrelation(:,param);
-        derp(:,param,:) = squareform(pdist(X(:)));
+    derp = zeros(numClasses,numFeatures,numClasses);
+    for feat = 1:numFeatures
+        X = averageCorrelation(:,feat);
+        derp(:,feat,:) = squareform(pdist(X(:)));
     end
     classCompare = mean(derp,3);
     for classCounter = 1:numClasses
@@ -96,7 +87,7 @@ tic
         savePlot('InterClass',classCounter,interCorrDistMat)
     end
 %% and we're done
-    disp('Attribute Evaluation Demo has been completed. Check your output folder for results')
+    disp('Attribute Evaluation Module has completed. Check your output folder for results')
 
 %% little subroutine to avoid repeating code
   function savePlot(plotType,classNumber,data)
@@ -104,37 +95,39 @@ tic
     a = linspace(1,0,64)';
     CMap = [a,a,a];
     h = figure('NumberTitle','off','Name',[plotType ' Correlation'],'Colormap',CMap);
-    set(gcf, 'Visible', 'off'); 
-    labelsY=1:numParameters;
-    axes1=axes('YTickLabel',imgParam,'YDir','reverse','XTick',labelsY,'XAxisLocation','top','Layer','top');
-    xlim([0.5 numParameters+.5]);
-    ylim([0.5 numParameters+.5]);
+    set(h, 'Visible', 'off'); 
+    labelsY=1:numFeatures;
+    axes1=axes('YTickLabel',imgFeatureNames,'YDir','reverse','XTick',labelsY,'XAxisLocation','top','Layer','top');
+    xlim([0.5 numFeatures+.5]);
+    ylim([0.5 numFeatures+.5]);
     hold('all');
     image(data,'Parent',axes1,'CDataMapping','scaled');
     colorbar('peer',axes1);
-    plotTitle = sprintf('%s %s Correlation DS-%s',classNames{classNumber},plotType,dataSet);
+    plotTitle = sprintf('%s %s Correlation DS-%s',classNames{classNumber},plotType,dataSetForPlots);
+    fileTitle = sprintf('%s %s Correlation DS-%s',classNames{classNumber},plotType,dataSet);
     title(plotTitle);
 
-    saveas(h,fullfile(AE_outputDir,plotTitle),'jpg');
+    saveas(h,fullfile(AE_outputDir,fileTitle),'jpg');
     close(h);
 %     disp([plotTitle,' plot has been saved']);
 
     %Calculate MDS for the MDS 2 component plots
-    h = gca;
-    MDSProjection = cmdscale(data);
-    labels = arrayfun(@num2str, 1:numParameters, 'unif', 0);
+    axish = gca;
+    h = gcf;
     set(h, 'Visible', 'off');
+    MDSProjection = cmdscale(data);
+    labels = arrayfun(@num2str, 1:numFeatures, 'unif', 0);
     plot(MDSProjection(:,1),MDSProjection(:,2),'LineStyle','none');
     axis(max(max(abs(MDSProjection))) * [-1.1,1.1,-1.1,1.1]); 
     axis('square');
     text(MDSProjection(:,1),MDSProjection(:,2),labels,'HorizontalAlignment','left');
-    set(h,'XTickLabel','');
-    set(h,'YTickLabel','');
-    plotTitle = sprintf('%s MDS %s Correlation DS-%s',classNames{classNumber},plotType,dataSet);
+    set(axish,'XTickLabel','');
+    set(axish,'YTickLabel','');
+    plotTitle = sprintf('%s MDS %s Correlation DS-%s',classNames{classNumber},plotType,dataSetForPlots);
+    fileTitle = sprintf('%s MDS %s Correlation DS-%s',classNames{classNumber},plotType,dataSet);
     title(plotTitle);
 
-    saveas(h,fullfile(AE_outputDir,plotTitle),'jpg');
+    saveas(h,fullfile(AE_outputDir,fileTitle),'jpg');
 %     disp([plotTitle, ' plot has been saved']);
   end
- toc
 end

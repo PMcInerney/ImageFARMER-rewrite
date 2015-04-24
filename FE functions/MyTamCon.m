@@ -1,11 +1,19 @@
-function Y = MyTamCon(X)
-try   %Error handling
-    temp_tamp=TamuraTextures(X);
-%Individual
-catch d
-    %If it fails.... make zeros
-    disp('error in TamCon')
-    temp_tamp=[0 0];
-end
-Y = temp_tamp(2); % take the second returned value
-
+function Fc = MyTamCon(Im)
+    if ~isa(Im,'double')
+        Im = im2double(Im);
+    end
+    try   %Error handling
+        Im = Im(:)';
+        ss = std(Im); 
+        if abs(ss)<1e-10, 
+            Fc = 0;
+        else
+            k = kurtosis(Im);
+            alf = k ./ ss.^4;
+            Fc = ss./(alf.^(.25));
+        end
+    catch d
+        %If it fails.... make zeros
+        warning('error in TamCon\n %s', d.message)
+        Fc=0;
+    end

@@ -27,23 +27,21 @@
 %
 %  Notes on this DEMO:
 %  http://www.jmbanda.com/Framework/Demo/
-function my_DR(varargin)
-
+function DimensionalityReductionModule(varargin)
     if nargin == 1
       alt_config = varargin{1};
     else
       alt_config = [];
     end
-    conf = my_CBIR_config(alt_config);
+    conf = CBIR_config(alt_config);
     %%%%Global settings
-    TotalImageCount = conf.totalImageCount;
     numSegments = conf.numSegments;
     dataSet = conf.dataSet;
     DR_outputDir = conf.DR_outputDir;
     if ~exist(DR_outputDir,'dir')
         mkdir(DR_outputDir);
     end
-    FVPath = conf.FVPath;
+    FDPath = conf.FDPath;
     imageClassLabelsPath = conf.imageClassLabelsPath;
     DR_functions = conf.DR_functions;
     DR_methodNames = conf.DR_methodNames;
@@ -51,13 +49,18 @@ function my_DR(varargin)
 
     plt=conf.DR_plt;                           %1 for plots , 0 for no plots
     weka_write=conf.DR_weka_write;             %1 for weka writing, 0 for weka writing
+    skipRCONDWarnings = conf.DR_skipRCONDWarnings;
+    if skipRCONDWarnings % can skip warning for close to singular matrices to avoid tons of printouts
+        warning('off','MATLAB:nearlySingularMatrix');% disable warnings for poorly conditioned matrices 
+    else
+        warning('on','MATLAB:nearlySingularMatrix');
+    end
 
 
-    %%%%%%%%%%%%%%%%%%%%%% END OF GLOBAL VARIABLES
-    %% Get Data from the FE files to manipulate
-    %%FV is (image, parameter, cell)
-    [FV,imageClassLabels] = loadData(FVPath,imageClassLabelsPath);
+    [FV,imageClassLabels] = loadData(FDPath,imageClassLabelsPath);
     classNames = unique(imageClassLabels);
+    TotalImageCount = length(imageClassLabels);
+    %%%%%%%%%%%%%%%%%%%%%% End of configuration
     %% Dimensionality Estimation (via PCA and SVD Components)
     %This will produce an 8 element vector with the four PCA dimensional
     %targets (from 96 to 99% of variance) and the four SVD dimensional targets
@@ -70,7 +73,7 @@ function my_DR(varargin)
     sizederp = size(derp);
     FE_data = reshape(derp,sizederp(1),sizederp(2)*sizederp(3));
 
-    %% Estimate how many dimensions are appropraite
+    % Estimate how many dimensions are appropraite
     target_dimensions=zeros(1,8); %this stores 8 target dimensions (4 for PCA, 4 for SVD)
     dim_counter=1;
 
@@ -92,19 +95,21 @@ function my_DR(varargin)
         target_dimensions(dim_counter) = find(Variance >= threshold/100,1); % use find to get first dimension count that hits threshold
         dim_counter=dim_counter+1;
       end
-      if plt
-        figure(2);
-        set(2, 'Visible', 'off');
+      if plt ~= runStatus.skip
+        h = figure();
+        set(h, 'Visible', 'off');
         plot(Variance,'DisplayName','Variance','YDataSource','Variance');
         plotTitle = strcat(method,' Component Variance for ALL Dataset-',dataSet);
         plotFilename = strcat(plotTitle,'-',int2str(numSegments),'x',int2str(numSegments));
         plotFilePath = fullfile(ouputFolder,plotFilename);
-        title(plotTitle);        
-        saveas(2,plotFilePath,'jpg');
-        close(2);
+        title(plotTitle);  
+        if ~exist(plotFilePath,'file') || plt==runStatus.overwrite
+            saveas(h,plotFilePath,'jpg');
+        end
+        close(h);
 
-        figure(3);
-        set(3, 'Visible', 'off');
+        h = figure();
+        set(h, 'Visible', 'off');
         if strcmp(method,'PCA')
           variances = latent;
         end
@@ -119,8 +124,10 @@ function my_DR(varargin)
         plotFilename=strcat(plotTitle,'-',int2str(numSegments),'x',int2str(numSegments));
         plotFilePath = fullfile(ouputFolder,plotFilename);
         title(plotTitle);
-        saveas(3,plotFilePath,'jpg');
-        close(3);
+        if ~exist(plotFilePath,'file') || plt==runStatus.overwrite
+            saveas(h,plotFilePath,'jpg');
+        end
+        close(h);
       end
     end
     fprintf(1,'Targeted dimensions for experimentation: %s\n\n', num2str(target_dimensions));
@@ -150,32 +157,43 @@ function my_DR(varargin)
 
 
     %% Actual dimensionality reduction
-    for numDims=target_dimensions  %Loop through the targeted dimensions
-        for DR_method_num = 1:length(DR_functions) % Loop through dimensionality reduction techniques
-            skip = 0;
-            try
-                [mappedX,t_points] =  DR_functions{DR_method_num}(TrainSet,TestSet,numDims);
-            catch E
-                fprintf(1,'dimensionality reduction for %s with %d dimensions failed. Skipping output\n\n',DR_methodNames{DR_method_num},numDims);
-                fprintf(1,'error message:\n%s\n\n',E.message);
-                skip = 1;
-            end
-%                 msg=char(strcat('LPP-',num2str(no_dimsEV),' failed because number of dimensions exceeds number of samples'))
-%                 skip=1;
-            %% OUTPUT TO WEKA
-            if weka_write && ~skip
+    failedRuns = {};
+    if weka_write ~= runStatus.skip
+        for numDims=target_dimensions  %Loop through the targeted dimensions
+            for DR_method_num = 1:length(DR_functions) % Loop through dimensionality reduction techniques
                 NumberDRComps=numDims;
                 DRParamNames = arrayfun(@num2str, 1:NumberDRComps, 'unif', 0); % just use 1,2,... for parameter names
-                %% WEKA Writing for Train set
-                wekaTitle=sprintf('67-33-%s-%s Components Training N-%d-Feature-All-%dx%d',dataSet,DR_methodNames{DR_method_num},NumberDRComps,numSegments,numSegments);
-                wekaFilePath=fullfile(DR_outputDir,[wekaTitle,'.arff']);
-                myWriteWeka(wekaFilePath,wekaTitle,DRParamNames,classNames,mappedX,labelsDataTrain)
-                %% WEKA Writing for Test set 
-                wekaTitle=sprintf('67-33-%s-%s Components Test N-%d-Feature-All-%dx%d',dataSet,DR_methodNames{DR_method_num},NumberDRComps,numSegments,numSegments);
-                wekaFilePath=fullfile(DR_outputDir,[wekaTitle,'.arff']);
-                myWriteWeka(wekaFilePath,wekaTitle,DRParamNames,classNames,t_points,labelsDataTest)
-            end %Weka write skipping
-        end %Reduction Methods loop
-    end % Dimensions Loop
-    disp('Dimensionality Reduction Module Demo has been completed. Check your output folder for results')
+
+                wekaTrainTitle=sprintf('67-33-%s-%s Components Training N-%d-Feature-All-%dx%d',dataSet,DR_methodNames{DR_method_num},NumberDRComps,numSegments,numSegments);
+                wekaTrainFilePath=fullfile(DR_outputDir,[wekaTrainTitle,'.arff']);
+
+                wekaTestTitle=sprintf('67-33-%s-%s Components Test N-%d-Feature-All-%dx%d',dataSet,DR_methodNames{DR_method_num},NumberDRComps,numSegments,numSegments);
+                wekaTestFilePath=fullfile(DR_outputDir,[wekaTestTitle,'.arff']);
+
+                % can only skip if both outputs exist
+                if exist(wekaTrainFilePath,'file') && exist(wekaTestFilePath,'file') && weka_write == runStatus.runIfMissing
+                    continue
+                end
+                
+                skip = 0;
+                try
+                    [mappedX,t_points] =  DR_functions{DR_method_num}(TrainSet,TestSet,numDims);
+                catch E
+                    failedRuns(end+1,:) = {DR_methodNames{DR_method_num},numDims}; %#ok<AGROW>
+                    skip = 1;
+                end
+                %% OUTPUT TO WEKA
+                if ~skip
+                    %% WEKA Writing for Train set
+                    myWriteWeka(wekaTrainFilePath,wekaTrainTitle,DRParamNames,classNames,mappedX,labelsDataTrain)
+                    myWriteWeka(wekaTestFilePath,wekaTestTitle,DRParamNames,classNames,t_points,labelsDataTest)
+                end %Weka write skipping
+            end %Reduction Methods loop
+        end % Dimensions Loop
+    end
+    for failRunNum = 1: size(failedRuns,1)
+        fprintf(1,'dimensionality reduction for %s with %d dimensions failed. Output skipped\n',failedRuns{failRunNum,:});
+        fprintf(1,'error message:\n%s\n\n',E.message);
+    end
+    disp('Dimensionality Reduction Module has completed. Check your output folder for results')
 end % end function

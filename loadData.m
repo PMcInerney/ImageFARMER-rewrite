@@ -1,13 +1,13 @@
-function [FV, imageClassLabels] = loadData(FVPath,imageClassLabelsPath)
-if(exist(FVPath,'file'))
-  load(FVPath);
-disp('feature data loaded');
+function [FD, imageClassLabels] = loadData(FDPath,imageClassLabelsPath)
+if(exist(FDPath,'file'))
+  s = load(FDPath,'FD');
+  FD = s.FD;
 else
   error('no Extracted Features found');
 end
 if(exist(imageClassLabelsPath,'file'))
-  load(imageClassLabelsPath);
-  disp('image class labels loaded');
+  s = load(imageClassLabelsPath,'imageClassLabels');
+  imageClassLabels = s.imageClassLabels;
 else
   error('no class labels found');
 end

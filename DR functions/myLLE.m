@@ -7,11 +7,11 @@ function [mappedX,t_points] = myLLE(trainData,testData,numDims)
 	% in this case, we use the function to map the unconnected points into the space like the test points
 	if size(mappedX,1) < size(trainData,1)
         fullMappedX = zeros(1600,200);
-        embeddedPointsIndex = mapping.conn_comp;
+        embeddedPointsIndex = mappingLLE.conn_comp;
         missingPointsIndex = true(1,1600);
         missingPointsIndex(embeddedPointsIndex) = false;
         missingPoints = trainData(missingPointsIndex,:);
         fullMappedX(embeddedPointsIndex,:) = mappedX;
-        fullMappedX(missingPointsIndex,:) = out_of_sample(missingPoints,mapping);
+        fullMappedX(missingPointsIndex,:) = out_of_sample(missingPoints,mappingLLE);
 		mappedX = fullMappedX;
 	end

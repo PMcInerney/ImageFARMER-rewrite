@@ -5,27 +5,28 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 addpath(genpath('.'))
 
-for jj = -1
+% for jj = -1
+for jj = [0,1,6]
     if exist('x','var')
       clear x;
     end
     x = struct;
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     if jj == -1
-      x.dataSet = 'MSCORID_subset';
+      x.dataSet = 'MSRCORID_subset';
       x.useFile = false;
-      x.datasetDir = '../datasets/MSCORID_subset/';
-      x.outputDir = 'MSCORID_subset_output/';
+      x.datasetDir = '../datasets/MSRCORID_subset/';
+      x.outputDir = 'MSRCORID_subset_output/';
       x.exten = 'JPG';
-      x.classSize = 20;
+      x.FE_writeParameterImages = runStatus.overwrite;
     end
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     if jj == 0
-      x.dataSet = 'MSCORID';
+      x.dataSet = 'MSRCORID';
       x.useFile = false;
-      x.datasetDir = '../datasets/MSCORID/';
-      x.outputDir = 'MSCORID_output/';
+      x.datasetDir = '../datasets/MSRCORID/';
+      x.outputDir = 'MSRCORID_output/';
       x.exten = 'JPG';
     end
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -34,7 +35,7 @@ for jj = -1
       x.dataSet = 'CLEFMED2007';
       x.useFile = false;
       x.datasetDir = '../datasets/ImageCLEFmed2007/';
-      x.outputDir = '/data/home/pmcinerney/CFM2007_Out';
+      x.outputDir = 'CFM2007_Out/';
       x.exten = 'png';
     end
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -43,7 +44,7 @@ for jj = -1
       x.dataSet = 'CLEFMED2005';
       x.useFile = false;
       x.datasetDir = 'ImageCLEFmed05/';
-      x.outputDir = '/data/home/pmcinerney/CFM2005_Out';
+      x.outputDir = 'CFM2005_Out/';
       x.exten = 'png';
     end
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -82,9 +83,9 @@ for jj = -1
     if jj == 6
       x.dataSet = 'TRACE';
       x.useFile = false;
-      x.datasetDir = '/data/home/pmcinerney/TRACE/';
+      x.datasetDir = '../datasets/TRACE/';
       x.imageListFile = '';
-      x.outputDir = '/data/home/pmcinerney/TRACE_Out';
+      x.outputDir = 'TRACE_Out';
       x.exten = 'tif';
     end
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -93,10 +94,17 @@ for jj = -1
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%run modules
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%  my_FE(x);
-  tic
-  profile on
-   my_DR(x);
-  toc
-  profile off
+profile on;
+    FeatureExtractionModule(x);
+profsave(profile('info'),[x.dataSet,'_FE profile']);
+profile clear;
+     AttributeEvaluationModule(x);
+profsave(profile('info'),[x.dataSet,'_AE profile']);
+profile clear;
+   DissimilarityMeasureModule(x);
+profsave(profile('info'),[x.dataSet,'_DM profile']);
+profile clear;
+   DimensionalityReductionModule(x);
+profsave(profile('info'),[x.dataSet,'_DR profile']);
+profile off
 end
