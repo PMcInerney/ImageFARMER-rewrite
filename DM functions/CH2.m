@@ -1,4 +1,4 @@
-function CH2 = my_CH2(XI,XJ)
+function CH2 = CH2(XI,XJ)
 %XI is a row vector representing an image
 %XJ is a set of row vectors representing other images
   num_Js = size(XJ,1);

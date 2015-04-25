@@ -1,6 +1,7 @@
-%% Attribute Evaluation Module (AEM) - DEMO
-%    Copyright (C) 2012  Juan M. Banda, Rafal A. Angryk from Montana State University
-%    Contact: juan@jmbanda.com
+%    ImageFARMER-Rewrite  Attribute Evaluation Module
+%    Copyright (C) 2015  Patrick McInerney
+%    Copyright (C) 2012  Juan M. Banda, Rafal A. Angryk
+%    Contact: pmmciner@gmail.com
 %
 %    This program is free software: you can redistribute it and/or modify
 %    it under the terms of the GNU General Public License as published by
@@ -14,53 +15,53 @@
 %
 %    You should have received a copy of the GNU General Public License
 %    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%  AttributeEvaluationModule()
+%   Runs the Attribute Evaluation Module of the
+%   IMAGEFarmer-Rewrite CBIR building framework.
 %
-%  Stand-alone script to ilustrate the usage of the Attribute Evaluation
-%  Module. Remember to set your path to the correct place where the demo
-%  subset of the dataset has been extracted
-%  For more details
-%  Juan M. Banda's dissertation:
-%  "FRAMEWORK FOR CREATING LARGE-SCALE CONTENT-BASED IMAGE RETRIEVAL SYSTEM
-%  (CBIR) FOR SOLAR DATA ANALYSIS"
-%  http://www.jmbanda.com/Dissertation/
+%   AttributeEvaluationModule(alt_config) takes any valid configuration 
+%   fields provided in the struct alt_config and substitutes them for those
+%   in the function file, making it easier to adjust one or two options on
+%   a run by run basis.
 %
-%  Notes on this DEMO:
-%  http://www.jmbanda.com/Framework/Demo/
 
 function AttributeEvaluationModule(varargin)
 
+%% Configuration
     if nargin == 1
       alt_config = varargin{1};
     else
       alt_config = [];
     end
 
-    %%%%% Main Variables
-    config_ops = CBIR_config(alt_config);
+    % Global Configuration options
+    config_ops = cbir_config(alt_config);
     numFeatures = config_ops.numFeatures;
     dataSet = config_ops.dataSet;
     dataSetForPlots = config_ops.dataSetForPlots;
     FDPath = config_ops.FDPath;
     imageClassLabelsPath = config_ops.imageClassLabelsPath;
-    AE_outputDir = config_ops.AE_outputDir;
-    if ~exist(AE_outputDir,'dir')
-        mkdir(AE_outputDir);
-    end
     imgFeatureNames = config_ops.imgFeatureNames;
     [FD, imageClassLabels] = loadData(FDPath,imageClassLabelsPath);
     classNames = unique(imageClassLabels);
     numClasses = length(classNames);
+    
+    % AE specific configuration options
+    AE_outputDir = config_ops.AE_outputDir;
+    if ~exist(AE_outputDir,'dir')
+        mkdir(AE_outputDir);
+    end
     % end of configuration
 
     %% Calculate average between-image correlation
-    averageCorrelation = zeros(numClasses,numFeatures,1); % the average correlation among values of a single parameter for a single class
+    averageCorrelation = zeros(numClasses,numFeatures,1); % the average correlation among values of a single feature for a single class
     for classCounter = 1:numClasses
         % pick out all the images for a class
         className = classNames(classCounter);
         classNameRep = repmat(className,size(imageClassLabels));
         classIndices = cellfun(@strcmp,classNameRep,imageClassLabels);
         classSize = sum(classIndices);
-        for feat=1:numFeatures %for each parameter
+        for feat=1:numFeatures %for each feature
             imageCorrelations = pdist(FD(classIndices,:,feat),'correlation');
             averageCorrelation(classCounter,feat) = 2*sum(imageCorrelations)/classSize^2; % calculate mean distance of non-squareform distance matrix
         end

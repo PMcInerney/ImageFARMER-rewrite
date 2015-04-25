@@ -1,4 +1,35 @@
-function outfile = CBIR_config(varargin)
+%    ImageFARMER-rewrite Configuration Function
+%    Copyright (C) 2015  Patrick McInerney
+%    Copyright (C) 2012  Juan M. Banda, Rafal A. Angryk
+%    Contact: pmmciner@gmail.com
+%
+%    This program is free software: you can redistribute it and/or modify
+%    it under the terms of the GNU General Public License as published by
+%    the Free Software Foundation, either version 3 of the License, or
+%    (at your option) any later version.
+%
+%    This program is distributed in the hope that it will be useful,
+%    but WITHOUT ANY WARRANTY; without even the implied warranty of
+%    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%    GNU General Public License for more details.
+%
+%    You should have received a copy of the GNU General Public License
+%    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+% Config_ops = CBIR_config()
+%   Returns a struct containing configuration settings for the
+%   IMAGEFarmer-Rewrite CBIR building framework.
+%
+%   It is intended that users may edit the function file to adjust the
+%   'default' configuration options if they choose.
+%   
+%   Config_ops = CBIR_config(alt_config) takes any valid configuration 
+%   fields provided in the struct alt_config and substitutes them for those
+%   in the function file, making it easier to adjust one or two options on
+%   a run by run basis.
+function outfile = cbir_config(varargin)
+
+%% argument processing
 if nargin == 0
   alt_config = [];
 elseif nargin == 1
@@ -11,9 +42,8 @@ else
 end
 
 outfile = struct();
-%% Non-derived Settings
 %%%%%%%%%%%%%%%%%%%%
-%% General Settings
+%% Global Settings
 %%%%%%%%%%%%%%%%%%%%
 outfile.useFile = false;
 outfile.numSegments=8;                       %Number of Columns/rows  NbyN
@@ -26,30 +56,29 @@ outfile.exten='png';                         %extension of dataset images
 outfile.datasetDir='';                       %The root folder of a dataset 
 outfile.outputDir='';                        %base folder of outputs
 
-outfile.imgFeatureNames={'mean','stdDev','skewness','kurtosis','entropy','FracDim','TamCon','TamDir','RS','Uniformity'};
-                                             %Image Parameter List
-outfile.imgFeatureFunctions={@mean2,@std2,@my3rdM, @my4thM, @entropy, @myFracDim,@MyTamCon,@MyTamDir,@myRS,@myUniformity};
+outfile.imgFeatureNames={'mean','stdDev','skewness','kurtosis','entropy','TamCon','TamDir','RS','Uniformity'};
+                                             %Image Feature List
+outfile.imgFeatureFunctions={@mean2,@std2,@wrapped3rdM, @wrapped4thM, @entropy,@TamuraContrast,@TamuraDirectionality,@RelSmooth,@Uniformity};
 outfile.imgFeatureFuncParams={{} {} {} {} {} {} {} {} {} {}};
 outfile.imageListFile = 'doesnt exist' ;
 outfile.numFeatures=length(outfile.imgFeatureFunctions);
-                                             %Number of Image Parameters
+                                             %Number of Image Features
 outfile.FDSize=outfile.numSegments*outfile.numSegments*outfile.numFeatures; 
                                              %Number of elements in the Feature Vector
 outfile.FDPath = fullfile(outfile.outputDir,'FD.mat');
 outfile.imageClassLabelsPath = fullfile(outfile.outputDir,'CL.mat');
 
-%%  module specific settings
+%%  Module Specific settings
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Feature Extraction
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 outfile.FE_featureDataOverwrite=false; % this will force the recalculation of feature data, even if it's already been extracted. Otherwise, the data will be loaded from the existing extraction
 outfile.FE_wekaWrite_fullFD=runStatus.runIfMissing;
 outfile.FE_wekaWrite_singleFeature = runStatus.runIfMissing;    %
-outfile.FE_writeParameterImages = runStatus.runIfMissing;
+outfile.FE_writeFeatureImages = runStatus.runIfMissing;
 outfile.FE_arffFilename = fullfile(outfile.outputDir,[outfile.dataSet '.arff']);
 outfile.FE_readFunction = @imread;             % this can be changed if we want to read from text files instead of images
 outfile.FE_readFunctionParameters = {};
-outfile.FE_fastParameterImages = true;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Attribute Evaluation
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -62,7 +91,7 @@ outfile.AE_outputDir = fullfile(outfile.outputDir,'AE');
 % Ph.D dissertation available at: http://www.jmbanda.com
 outfile.DM_distanceNames={'euclidean' 'seuclidean' 'mahalanobis' 'cityblock' 'cosine' 'correlation' 'spearman' 'chebychev' 'hausdorff' 'KLD' 'JSD' 'CHI2'};
                                                %the names of the different distances used
-outfile.DM_distanceFunctions={'euclidean','seuclidean','mahalanobis','cityblock','cosine','correlation','spearman','chebychev',@my_haus,@my_KLDSym,@my_JSD,@my_CH2};
+outfile.DM_distanceFunctions={'euclidean','seuclidean','mahalanobis','cityblock','cosine','correlation','spearman','chebychev',@haus,@KLDSym,@JSD,@CH2};
 outfile.DM_distanceFuncParams={{} {} {} {} {} {} {} {} {} {}};
 
 outfile.DM_numDistances = length(outfile.DM_distanceFunctions);                     %number of distances used for similarity comparisons
@@ -94,11 +123,12 @@ outfile.DM_MDS_plotColors = [
 outfile.DR_plt = runStatus.skip;
 outfile.DR_weka_write = runStatus.runIfMissing;
 outfile.DR_methodNames={'PCA','SVD','KernelPCA','FactorAnalysis','LLE','Laplacian','Isomap','LPP'};
-outfile.DR_functions={@myPCA,@mySVD,@myKPCA,@myFA,@myLLE,@myLaplacian,@myIsomap,@myLPP};
+outfile.DR_functions={@wrappedPCA,@wrappedSVD,@wrappedKPCA,@wrappedFA,@wrappedLLE,@wrappedLaplacian,@wrappedIsomap,@wrappedLPP};
 outflie.DR_outputDir = fullfile(outfile.outputDir,'DR');
 outfile.DR_skipRCONDWarnings = true; 
-% certain DR techniques (like Factor Analysis) tend to produce a lot of
-% these warnings on some datasets. Although this probably indicates that the data isn't
+% certain DR techniques (like Factor Analysis) tend to produce a lot 
+% 'ill-conditioned matrix' warnings on some datasets. Although this 
+% probably indicates that the data isn't
 % working with the technique well, which is good to know, that information
 % can overwhelm other outputs.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

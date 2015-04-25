@@ -1,4 +1,4 @@
-function HDD = my_haus(XI,XJ)
+function HDD = haus(XI,XJ)
   %XI is a row vector representing an image
   %XJ is a set of row vectors representing other images
   num_js = size(XJ,1);

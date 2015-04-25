@@ -1,4 +1,4 @@
-function KLD = my_KLDBA(XI,XJ)
+function KLD = KLDBA(XI,XJ)
 % my_KLD(XI,XJ)
 % XI is a row vector representing an image
 % XJ is a set of row vectors representing other images

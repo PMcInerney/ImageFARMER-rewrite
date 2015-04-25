@@ -1,6 +1,7 @@
-%% Feature Extraction Module (FEM) - DEMO
-%    Copyright (C) 2012  Juan M. Banda, Rafal A. Angryk from Montana State University
-%    Contact: juan@jmbanda.com
+%    ImageFARMER-Rewrite  Feature Extraction Module
+%    Copyright (C) 2015  Patrick McInerney
+%    Copyright (C) 2012  Juan M. Banda, Rafal A. Angryk
+%    Contact: pmmciner@gmail.com
 %
 %    This program is free software: you can redistribute it and/or modify
 %    it under the terms of the GNU General Public License as published by
@@ -14,20 +15,20 @@
 %
 %    You should have received a copy of the GNU General Public License
 %    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-%
-% MORE INFO:
-%  Stand-alone script to ilustrate the usage of the Feature Extraction
-%  Module. Remember to set your path to the correct place where the demo
-%  subset of the dataset has been extracted
-%  For more details
-%  Juan M. Banda's dissertation:
-%  "FRAMEWORK FOR CREATING LARGE-SCALE CONTENT-BASED IMAGE RETRIEVAL SYSTEM
-%  (CBIR) FOR SOLAR DATA ANALYSIS"
-%  http://www.jmbanda.com/Dissertation/
-%
-%  Notes on this DEMO:
-%  http://www.imagefarmer.org
 function FeatureExtractionModule(varargin)
+%  FeatureExtractionModule()
+%   Runs the Feature Extraction Module of the
+%   IMAGEFarmer-Rewrite CBIR building framework.
+%
+%   The other modules (Attribute Evaluation, Dissimilarity Measures, and
+%   Dimensionality Reduction) are dependent on the 'FD.mat' and 'CL.mat'
+%   outputs of this module for operation.
+%   
+%   FeatureExtractionModule(alt_config) takes any valid configuration 
+%   fields provided in the struct alt_config and substitutes them for those
+%   in the function file, making it easier to adjust one or two options on
+%   a run by run basis.
+%
     if nargin == 1
       alt_config = varargin{1};
     else
@@ -35,13 +36,12 @@ function FeatureExtractionModule(varargin)
     end
     %%%%% Main Variables
 
-    config_ops = CBIR_config(alt_config);
+    config_ops = cbir_config(alt_config);
     %%% Global settings
     numSegments = config_ops.numSegments;
     sizeSegments = config_ops.sizeSegments;
     numCells = config_ops.numCells;
     dataSet = config_ops.dataSet;
-    dataSetForPlots = config_ops.dataSetForPlots;
     exten = config_ops.exten;
     datasetDir = config_ops.datasetDir;
     outputDir = config_ops.outputDir;
@@ -55,14 +55,13 @@ function FeatureExtractionModule(varargin)
     imageClassLabelsPath = config_ops.imageClassLabelsPath;
     imagesfile = config_ops.imageListFile;
     useFile = config_ops.useFile;
-    writeParameterImages = config_ops.FE_writeParameterImages;
+    writeFeatureImages = config_ops.FE_writeFeatureImages;
     %%% FE specific settings
     featureDataOverwrite = config_ops.FE_featureDataOverwrite;    %1 for extracting features
     wekaWrite_fullFD = config_ops.FE_wekaWrite_fullFD;%1 for writing weka files for classification
     wekaWrite_singleFeature = config_ops.FE_wekaWrite_singleFeature;
     readFunction=config_ops.FE_readFunction;
     readFunctionParameters = config_ops.FE_readFunctionParameters;
-    fastParameterImages = config_ops.FE_fastParameterImages;
     %%%%%%%%%%%%%%%%%%%%%%%%%%%
     %%%%% End of configuration
     %%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -110,12 +109,12 @@ function FeatureExtractionModule(varargin)
       l = length(value);
       if l > 1
         nums = cellfun(@num2str,num2cell(1:l),'UniformOutput',false);
-        repImageParameter = repmat(imgFeatureNames(featureValueNum),[1 l]);
-        expandedSingleImageParameter = cellfun(@strcat,repImageParameter,nums,'UniformOutput', false);
+        repImageFeatNames = repmat(imgFeatureNames(featureValueNum),[1 l]);
+        expandedSingleImageFeature = cellfun(@strcat,repImageFeatNames,nums,'UniformOutput', false);
       else
-        expandedSingleImageParameter = imgFeatureNames(featureValueNum);
+        expandedSingleImageFeature = imgFeatureNames(featureValueNum);
       end
-      expandedImageFeatures = cat(2,expandedImageFeatures,expandedSingleImageParameter);
+      expandedImageFeatures = cat(2,expandedImageFeatures,expandedSingleImageFeature);
       numFeatureValues = length(expandedImageFeatures);
     end
 
@@ -144,7 +143,7 @@ function FeatureExtractionModule(varargin)
             moveX = (im_x-chunkX)/(numSegments-1);
             moveY = (im_y-chunkY)/(numSegments-1);
 
-            % go through each cell of the image, and calculate the parameters
+            % go through each cell of the image, and calculate the features
             x=1;
             y=1;
             x2=chunkX;
@@ -154,12 +153,12 @@ function FeatureExtractionModule(varargin)
               for iCol=1:numSegments  %columns
                 cellCounter = cellCounter +1;
                 cellRange=I(y:y2,x:x2);
-                parameterCounter = 1;
+                featureCounter = 1;
                 for featureValueNum = 1:length(imgFeatureNames)
                   if numel(cellRange) >0
                     value =  imgFeatureFunctions{featureValueNum}(cellRange,imgFeatureFuncParams{featureValueNum}{:});
-                    FD(imageNum,cellCounter,parameterCounter:parameterCounter+length(value)-1) = value;
-                    parameterCounter = parameterCounter+length(value);
+                    FD(imageNum,cellCounter,featureCounter:featureCounter+length(value)-1) = value;
+                    featureCounter = featureCounter+length(value);
                   else
                     FD(imageNum,cellCounter,featureValueNum) = 0;
                     disp('zero area extraction cell encountered')
@@ -189,21 +188,21 @@ function FeatureExtractionModule(varargin)
     end
 
     %%%%%%%%%%%%%%%%%%%%%%%%%
-    %% write parameter images
+    %% write feature images
     %%%%%%%%%%%%%%%%%%%%%%%%%
     skips = 0;
-    if writeParameterImages ~= runStatus.skip
+    if writeFeatureImages ~= runStatus.skip
       numDigits = ceil(log10(numImages));
       numDigits = num2str(numDigits);
-      ParameterImageBaseFolder = fullfile(outputDir,'ParameterImages');
-      if ~exist(ParameterImageBaseFolder,'dir')
-        mkdir(ParameterImageBaseFolder);
+      FeatureImageBaseFolder = fullfile(outputDir,'FeatureImages');
+      if ~exist(FeatureImageBaseFolder,'dir')
+        mkdir(FeatureImageBaseFolder);
       end
-      disp('writing parameter images');
+      disp('writing feature images');
 
 
 
-      for featureNum = 1:length(imgFeatureNames) % for each parameter
+      for featureNum = 1:length(imgFeatureNames) % for each feature
         featureName = imgFeatureNames{featureNum}; % 
         Y = squeeze(FD(:,:,featureNum));
 
@@ -215,26 +214,17 @@ function FeatureExtractionModule(varargin)
           I = reshape(I,[numSegments numSegments])';
           I = I/featureWekaAttributeNames;
 
-          ParamImClassFolder = fullfile(ParameterImageBaseFolder,featureName,['class ',class_I]);
-          if ~exist(ParamImClassFolder,'dir')
-            mkdir(ParamImClassFolder);
+          FeatImClassFolder = fullfile(FeatureImageBaseFolder,featureName,['class ',class_I]);
+          if ~exist(FeatImClassFolder,'dir')
+            mkdir(FeatImClassFolder);
           end
 
-          filepath = fullfile(ParamImClassFolder,[sprintf(['%0',numDigits,'d'],count),'.png']);
-          if ~exist(filepath,'file') || writeParameterImages == runStatus.overwrite 
-            if fastParameterImages
-                numColors = 64;
-                I = quickscaleImage(I);
-                I = normToZeroX(I,numColors);
-                imwrite(I,jet(numColors),filepath,'png');
-            else
-                h = figure();
-                set(h, 'Visible', 'off');
-                imagesc(I);
-                title(sprintf('%s-%s-Image %d',dataSetForPlots,featureName,imageNum));
-                saveas(h,filepath,'png');
-                close(h);
-            end
+          filepath = fullfile(FeatImClassFolder,[sprintf(['%0',numDigits,'d'],count),'.png']);
+          if ~exist(filepath,'file') || writeFeatureImages == runStatus.overwrite 
+            numColors = 64;
+            I = quickscaleImage(I);
+            I = normToZeroX(I,numColors);
+            imwrite(I,jet(numColors),filepath,'png');
           else
               skips = skips+1;
           end
@@ -242,7 +232,7 @@ function FeatureExtractionModule(varargin)
         end
       end
       if skips >0
-          fprintf(1,'%d parameter images skipped due to already existing\n',skips);
+          fprintf(1,'%d feature images skipped due to already existing\n',skips);
       end
     end
 
@@ -252,8 +242,8 @@ function FeatureExtractionModule(varargin)
     if wekaWrite_fullFD ~= runStatus.skip
         disp('writing weka for full feature data')
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    %%%% Use the FV data structure
-    %%%% to build weka data structure
+    %%%% Use the Feature Data structure
+    %%%% to build weka data (ARFF) structure
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         allFeaturesWekatitle = sprintf('%s-%dx%d-%s',dataSet,numSegments,numSegments,'ALLFEATURES');
         arffFilename=fullfile(outputDir,[allFeaturesWekatitle,'.arff']);
@@ -284,21 +274,21 @@ function FeatureExtractionModule(varargin)
               imageWekaData{imageNum} = cat(2,featureWekaData{:});
             end % end of images loop;
             wekaData = cat(1,imageWekaData{:});
-            myWriteWeka(arffFilename,'derp',allWekaAttributeNames,classes,wekaData,imageClassLabels)
+            writeWeka(arffFilename,'derp',allWekaAttributeNames,classes,wekaData,imageClassLabels)
         else
             disp('all feature weka already created')
         end
     end
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-      %% make ARFF for each parameter
+      %% make ARFF for each feature
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     if wekaWrite_singleFeature ~= runStatus.skip
         disp('writing weka for individual feature data')
         for featureValueNum = 1:numFeatureValues
           individualFeatureWekatitle = sprintf('%s-%dx%d-%s',dataSet,numSegments,numSegments,expandedImageFeatures{featureValueNum});
-          paramArffFilename = fullfile(outputDir,[individualFeatureWekatitle,'.arff']);
-          if ~exist(paramArffFilename,'file') || wekaWrite_singleFeature == runStatus.overwrite 
+          featArffFilename = fullfile(outputDir,[individualFeatureWekatitle,'.arff']);
+          if ~exist(featArffFilename,'file') || wekaWrite_singleFeature == runStatus.overwrite 
             imageWekaData = cell(numImages,1);
             for imageNum = 1:numImages
               %each row of the data is an image
@@ -317,12 +307,12 @@ function FeatureExtractionModule(varargin)
               imageWekaData{imageNum} = featureValueForAllCells;
             end % end of images loop;
             wekaData = cat(1,imageWekaData{:});
-            myWriteWeka(paramArffFilename,'derp',featureWekaAttributeNames,classes,wekaData,imageClassLabels)
+            writeWeka(featArffFilename,'derp',featureWekaAttributeNames,classes,wekaData,imageClassLabels)
           else
             fprintf('%s individual weka already created\n',expandedImageFeatures{featureValueNum});
           end
-        end % end individual parameter loop 
-    end % end single parameter ARFF creation
+        end % end individual feature loop 
+    end % end single feature ARFF creation
     disp('Feature Extraction Module has completed. Check your output folder for results')
 
     function I2 = quickscaleImage(I)

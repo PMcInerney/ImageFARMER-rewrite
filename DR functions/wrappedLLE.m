@@ -1,4 +1,4 @@
-function [mappedX,t_points] = myLLE(trainData,testData,numDims)
+function [mappedX,t_points] = wrappedLLE(trainData,testData,numDims)
     [mappedX, mappingLLE] = compute_mapping(trainData, 'LLE', numDims);
     t_points = out_of_sample(testData, mappingLLE);
 

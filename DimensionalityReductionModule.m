@@ -1,6 +1,7 @@
-%% Dimensionality Reduction Module (DRM) Demo
-%    Copyright (C) 2012  Juan M. Banda, Rafal A. Angryk from Montana State University
-%    Contact: juan@jmbanda.com
+%    ImageFARMER-Rewrite  Dimensionality Reduction Module
+%    Copyright (C) 2015  Patrick McInerney
+%    Copyright (C) 2012  Juan M. Banda, Rafal A. Angryk
+%    Contact: pmmciner@gmail.com
 %
 %    This program is free software: you can redistribute it and/or modify
 %    it under the terms of the GNU General Public License as published by
@@ -14,26 +15,23 @@
 %
 %    You should have received a copy of the GNU General Public License
 %    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%  DimensionalityReductionModule()
+%   Runs the Dimensionality Reduction Module of the
+%   IMAGEFarmer-Rewrite CBIR building framework.
 %
-% MORE INFO
-%  Stand-alone script to ilustrate the usage of the Feature Extraction
-%  Module. Remember to set your path to the correct place where the demo
-%  subset of the dataset has been extracted
-%  For more details
-%  Juan M. Banda's dissertation:
-%  "FRAMEWORK FOR CREATING LARGE-SCALE CONTENT-BASED IMAGE RETRIEVAL SYSTEM
-%  (CBIR) FOR SOLAR DATA ANALYSIS"
-%  http://www.jmbanda.com/Dissertation/
+%   DimensionalityReductionModule(alt_config) takes any valid configuration 
+%   fields provided in the struct alt_config and substitutes them for those
+%   in the function file, making it easier to adjust one or two options on
+%   a run by run basis.
 %
-%  Notes on this DEMO:
-%  http://www.jmbanda.com/Framework/Demo/
+
 function DimensionalityReductionModule(varargin)
     if nargin == 1
       alt_config = varargin{1};
     else
       alt_config = [];
     end
-    conf = CBIR_config(alt_config);
+    conf = cbir_config(alt_config);
     %%%%Global settings
     numSegments = conf.numSegments;
     dataSet = conf.dataSet;
@@ -68,7 +66,7 @@ function DimensionalityReductionModule(varargin)
     %Example: target_dimensions=[ PCA # of components with 96% of variance,
     %PCA # of components with 97% of variance, etc, etc]
 
-    % reshape FV from (image,parameter,cell) to (im,cell-param)
+    % reshape FV from (image,feature,cell) to (im,cell-feat)
     derp = permute(FV,[1,3,2]);
     sizederp = size(derp);
     FE_data = reshape(derp,sizederp(1),sizederp(2)*sizederp(3));
@@ -142,7 +140,7 @@ function DimensionalityReductionModule(varargin)
     % all possible datasets
     
     % Normalize before separating
-    FE_data = bsxfun(@rdivide,FE_data,sum(FE_data,2)); % each parameter is normalized to sum to one across the dataset
+    FE_data = bsxfun(@rdivide,FE_data,sum(FE_data,2)); % each feature is normalized to sum to one across the dataset
     FE_data(FE_data==0) = 0.000000000000000000000001;  % avoid zeros
 
     TestIndices = boolean(zeros(1,TotalImageCount));
@@ -162,7 +160,7 @@ function DimensionalityReductionModule(varargin)
         for numDims=target_dimensions  %Loop through the targeted dimensions
             for DR_method_num = 1:length(DR_functions) % Loop through dimensionality reduction techniques
                 NumberDRComps=numDims;
-                DRParamNames = arrayfun(@num2str, 1:NumberDRComps, 'unif', 0); % just use 1,2,... for parameter names
+                DRWekaAttributeNames = arrayfun(@num2str, 1:NumberDRComps, 'unif', 0); % just use 1,2,... for WekaAttribute names
 
                 wekaTrainTitle=sprintf('67-33-%s-%s Components Training N-%d-Feature-All-%dx%d',dataSet,DR_methodNames{DR_method_num},NumberDRComps,numSegments,numSegments);
                 wekaTrainFilePath=fullfile(DR_outputDir,[wekaTrainTitle,'.arff']);
@@ -179,21 +177,21 @@ function DimensionalityReductionModule(varargin)
                 try
                     [mappedX,t_points] =  DR_functions{DR_method_num}(TrainSet,TestSet,numDims);
                 catch E
-                    failedRuns(end+1,:) = {DR_methodNames{DR_method_num},numDims}; %#ok<AGROW>
+                    failedRuns(end+1,:) = {DR_methodNames{DR_method_num},numDims,E.message}; %#ok<AGROW>
                     skip = 1;
                 end
                 %% OUTPUT TO WEKA
                 if ~skip
                     %% WEKA Writing for Train set
-                    myWriteWeka(wekaTrainFilePath,wekaTrainTitle,DRParamNames,classNames,mappedX,labelsDataTrain)
-                    myWriteWeka(wekaTestFilePath,wekaTestTitle,DRParamNames,classNames,t_points,labelsDataTest)
+                    writeWeka(wekaTrainFilePath,wekaTrainTitle,DRWekaAttributeNames,classNames,mappedX,labelsDataTrain)
+                    writeWeka(wekaTestFilePath,wekaTestTitle,DRWekaAttributeNames,classNames,t_points,labelsDataTest)
                 end %Weka write skipping
             end %Reduction Methods loop
         end % Dimensions Loop
     end
     for failRunNum = 1: size(failedRuns,1)
-        fprintf(1,'dimensionality reduction for %s with %d dimensions failed. Output skipped\n',failedRuns{failRunNum,:});
-        fprintf(1,'error message:\n%s\n\n',E.message);
+        fprintf(1,'dimensionality reduction for %s with %d dimensions failed. Output skipped\n',failedRuns{failRunNum,1:2});
+        fprintf(1,'error message:\n%s\n\n',failedRuns{failRunNum,3});
     end
     disp('Dimensionality Reduction Module has completed. Check your output folder for results')
 end % end function

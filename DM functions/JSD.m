@@ -1,4 +1,4 @@
-function JSD = my_JSD(XI,XJ)
+function JSD = JSD(XI,XJ)
 %XI is a row vector representing an image
 %XJ is a set of row vectors representing other images
   num_Js = size(XJ,1);
