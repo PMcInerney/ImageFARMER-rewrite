@@ -15,6 +15,9 @@
 %
 %    You should have received a copy of the GNU General Public License
 %    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+%
+%
 %  DissimilarityMeasureModule()
 %   Runs the Dissimilarity Measure Module of the
 %   IMAGEFarmer-Rewrite CBIR building framework.
@@ -38,28 +41,26 @@ function DissimilarityMeasureModule(varargin)
     conf = cbir_config(alt_config);
     % Global settings
     numSegments = conf.numSegments;
-    numCells = conf.numCells;
+    numCells = numSegments*numSegments;
     numFeatures = conf.numFeatures;
     imgFeatureNames = conf.imgFeatureNames;
     dataSet = conf.dataSet;
     FDPath = conf.FDPath;
     imageClassLabelsPath = conf.imageClassLabelsPath;
+    % DM specific settings
     DM_outputFolder = conf.DM_outputFolder;
     if ~exist(DM_outputFolder,'dir')
         mkdir(DM_outputFolder);
     end
-    % DM specific settings
     distanceFunctions = conf.DM_distanceFunctions;
     distanceNames = conf.DM_distanceNames;
-    numDistances=conf.DM_numDistances;             %Number of different distances
-    tang_thres=conf.DM_tang_thres;           %tangent angle (in degrees) for thresholding comp$
+    numDistances = length(distanceFunctions);
+    tang_thres=conf.DM_tang_thres;           %tangent angle (in degrees) for thresholding
     hardThresholds=conf.DM_component_thresholds;
     MDS_plotColors = conf.DM_MDS_plotColors;
-    %space at the end of each entry is important
 
-    %If there is need to re-run a section  (DEVELOPER MODE)  Default all should be 1
     plt=conf.DM_plot;                        %0 for plots , 1 for no plots
-    weka_write=conf.DM_weka_write;           %0 for no weka writing, 1 for weka writing
+    wekaWrite=conf.DM_wekaWrite;           %0 for no weka writing, 1 for weka writing
 
     [FD, imageClassLabels] = loadData(FDPath,imageClassLabelsPath);
     classNames = unique(imageClassLabels);
@@ -202,7 +203,7 @@ function DissimilarityMeasureModule(varargin)
                 close(h);
               end
             end %End Plotting section
-            if weka_write ~= runStatus.skip %% Weka part
+            if wekaWrite ~= runStatus.skip %% Weka part
                 % take some number of the MDS values for each image and write
                 % them into an arff file for classification testing
                 %% Tangent based threshold
@@ -228,7 +229,7 @@ function DissimilarityMeasureModule(varargin)
                   end
                   WekaFilename = strcat(WekaLabel,'.arff');
                   WekaFileFullPath = fullfile(DM_outputFolder,WekaFilename);
-                  if exist(WekaFileFullPath,'file') && weka_write == runStatus.runIfMissing
+                  if exist(WekaFileFullPath,'file') && wekaWrite == runStatus.runIfMissing
                       continue
                   end
                   MDSWekaAttributeLabels = arrayfun(@num2str, 1:numComponents, 'unif', 0); % just use 1,2,... for Weka Attribute names
@@ -240,8 +241,6 @@ function DissimilarityMeasureModule(varargin)
                     disp(numComponents);
                     disp(imgFeatureNames{featureNum});
                     disp(distCounter);
-        %             X = MDS_projection
-        %             save(
                     rethrow(E);
                   end
                   writeWeka(WekaFileFullPath,WekaLabel,MDSWekaAttributeLabels,classNames,dataMatrix,imageClassLabels)

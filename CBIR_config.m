@@ -47,12 +47,9 @@ outfile = struct();
 %%%%%%%%%%%%%%%%%%%%
 outfile.useFile = false;
 outfile.numSegments=8;                       %Number of Columns/rows  NbyN
-outfile.sizeSegments = 1/outfile.numSegments;        %size (in fraction of image dimension) of each segment. large sizes will cause segments to overlap
-outfile.numCells=outfile.numSegments*outfile.numSegments;
-                                             %Grid Cell Size
 outfile.dataSet='CLEFMED05';                 %Dataset Being Manipulated           
 outfile.dataSetForPlots=strrep(outfile.dataSet,'_','\_');                 %Dataset Being Manipulated           
-outfile.exten='png';                         %extension of dataset images
+outfile.extension='png';                         %extension of dataset images
 outfile.datasetDir='';                       %The root folder of a dataset 
 outfile.outputDir='';                        %base folder of outputs
 
@@ -63,8 +60,6 @@ outfile.imgFeatureFuncParams={{} {} {} {} {} {} {} {} {} {}};
 outfile.imageListFile = 'doesnt exist' ;
 outfile.numFeatures=length(outfile.imgFeatureFunctions);
                                              %Number of Image Features
-outfile.FDSize=outfile.numSegments*outfile.numSegments*outfile.numFeatures; 
-                                             %Number of elements in the Feature Vector
 outfile.FDPath = fullfile(outfile.outputDir,'FD.mat');
 outfile.imageClassLabelsPath = fullfile(outfile.outputDir,'CL.mat');
 
@@ -76,7 +71,6 @@ outfile.FE_featureDataOverwrite=false; % this will force the recalculation of fe
 outfile.FE_wekaWrite_fullFD=runStatus.runIfMissing;
 outfile.FE_wekaWrite_singleFeature = runStatus.runIfMissing;    %
 outfile.FE_writeFeatureImages = runStatus.runIfMissing;
-outfile.FE_arffFilename = fullfile(outfile.outputDir,[outfile.dataSet '.arff']);
 outfile.FE_readFunction = @imread;             % this can be changed if we want to read from text files instead of images
 outfile.FE_readFunctionParameters = {};
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -94,11 +88,10 @@ outfile.DM_distanceNames={'euclidean' 'seuclidean' 'mahalanobis' 'cityblock' 'co
 outfile.DM_distanceFunctions={'euclidean','seuclidean','mahalanobis','cityblock','cosine','correlation','spearman','chebychev',@haus,@KLDSym,@JSD,@CH2};
 outfile.DM_distanceFuncParams={{} {} {} {} {} {} {} {} {} {}};
 
-outfile.DM_numDistances = length(outfile.DM_distanceFunctions);                     %number of distances used for similarity comparisons
 outfile.DM_tang_thres= 135;                    %tangent angle thresholding for components
 outfile.DM_component_thresholds=10;            %flat component thresholds. can use array to run multiple
-outfile.DM_plot = runStatus.runIfMissing;                           %0 for plots , true for no plots
-outfile.DM_weka_write = runStatus.runIfMissing;                     %0 for no weka writing, true for weka writing 
+outfile.DM_plot = runStatus.runIfMissing;
+outfile.DM_wekaWrite = runStatus.runIfMissing;
 outfile.DM_outputFolder = fullfile(outfile.outputDir,'DM');
 % this colors are picked for good contrast. If more than 12 classes are
 % being viewed via MDS, other data will need to be provided.
@@ -120,12 +113,16 @@ outfile.DM_MDS_plotColors = [
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Dimensionality reduction
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%
-outfile.DR_plt = runStatus.skip;
-outfile.DR_weka_write = runStatus.runIfMissing;
+outfile.DR_plotDimensionSelection = runStatus.skip;
+outfile.DR_varianceThresholds = 96:99; %percentage of variance used to 
+% pick number of dimensions to reduce to. using an array here will cause
+% multiple separate reductions, each producing separate outputs.
+outfile.DR_fixedDimensions = [];
+outfile.DR_wekaWrite = runStatus.runIfMissing;
 outfile.DR_methodNames={'PCA','SVD','KernelPCA','FactorAnalysis','LLE','Laplacian','Isomap','LPP'};
 outfile.DR_functions={@wrappedPCA,@wrappedSVD,@wrappedKPCA,@wrappedFA,@wrappedLLE,@wrappedLaplacian,@wrappedIsomap,@wrappedLPP};
-outflie.DR_outputDir = fullfile(outfile.outputDir,'DR');
-outfile.DR_skipRCONDWarnings = true; 
+outfile.DR_outputDir = fullfile(outfile.outputDir,'DR');
+outfile.DR_skipRCONDWarnings = true;
 % certain DR techniques (like Factor Analysis) tend to produce a lot 
 % 'ill-conditioned matrix' warnings on some datasets. Although this 
 % probably indicates that the data isn't
@@ -149,11 +146,6 @@ if nargin == 1 % if alt_config provided
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % if we didn't explicitly override a derived option
     % derive it again
-    % this is an imperfect option, but there isn't an easy alternataive
-    if ~isfield(alt_config,'sizeSegments')
-        outfile.sizeSegments = 1/outfile.numSegments;        %size (in fraction of image dimension) of each segment. large sizes will cause segments to overlap
-    end
-
     if ~isfield(alt_config,'numFeatures')                     
         outfile.numFeatures = length(outfile.imgFeatureFunctions);
     end
@@ -162,20 +154,12 @@ if nargin == 1 % if alt_config provided
         outfile.dataSetForPlots=strrep(outfile.dataSet,'_','\_');
     end
 
-    if ~isfield(alt_config,'FVSize')
-        outfile.FVSize=outfile.numSegments*outfile.numSegments*outfile.numFeatures;
-    end
-
     if ~isfield(alt_config,'FDPath')
         outfile.FDPath = fullfile(outfile.outputDir,'FD.mat');
     end
 
     if ~isfield(alt_config,'imageClassLabelsPath')
         outfile.imageClassLabelsPath = fullfile(outfile.outputDir,'CL.mat');
-    end
-
-    if ~isfield(alt_config,'numCells')
-        outfile.numCells=outfile.numSegments*outfile.numSegments;
     end
 
     if ~isfield(alt_config,'DM_numDistances')

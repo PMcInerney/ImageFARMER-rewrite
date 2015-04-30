@@ -15,6 +15,9 @@
 %
 %    You should have received a copy of the GNU General Public License
 %    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+%
+%
 %  DimensionalityReductionModule()
 %   Runs the Dimensionality Reduction Module of the
 %   IMAGEFarmer-Rewrite CBIR building framework.
@@ -45,8 +48,10 @@ function DimensionalityReductionModule(varargin)
     DR_methodNames = conf.DR_methodNames;
     %%%%Local Settings
 
-    plt=conf.DR_plt;                           %1 for plots , 0 for no plots
-    weka_write=conf.DR_weka_write;             %1 for weka writing, 0 for weka writing
+    plotDimensionSelection=conf.DR_plotDimensionSelection; 
+    wekaWrite=conf.DR_wekaWrite; 
+    varianceThresholds = conf.DR_varianceThresholds;
+    fixedDimensions = conf.DR_fixedDimensions;
     skipRCONDWarnings = conf.DR_skipRCONDWarnings;
     if skipRCONDWarnings % can skip warning for close to singular matrices to avoid tons of printouts
         warning('off','MATLAB:nearlySingularMatrix');% disable warnings for poorly conditioned matrices 
@@ -60,9 +65,9 @@ function DimensionalityReductionModule(varargin)
     TotalImageCount = length(imageClassLabels);
     %%%%%%%%%%%%%%%%%%%%%% End of configuration
     %% Dimensionality Estimation (via PCA and SVD Components)
-    %This will produce an 8 element vector with the four PCA dimensional
-    %targets (from 96 to 99% of variance) and the four SVD dimensional targets
-    %(from 96 to 99% of variance)
+    %This will produce a vector with the PCA SVD dimensional targets, based
+    %on the number of components necessary to match the level of variance
+    %specified in the configuration
     %Example: target_dimensions=[ PCA # of components with 96% of variance,
     %PCA # of components with 97% of variance, etc, etc]
 
@@ -71,8 +76,8 @@ function DimensionalityReductionModule(varargin)
     sizederp = size(derp);
     FE_data = reshape(derp,sizederp(1),sizederp(2)*sizederp(3));
 
-    % Estimate how many dimensions are appropraite
-    target_dimensions=zeros(1,8); %this stores 8 target dimensions (4 for PCA, 4 for SVD)
+    % Estimate how many dimensions are appropriate
+    dynamicallySelectedDimensions=zeros(1,2*length(varianceThresholds)); %this stores target dimensions for each threshold (1 for PCA, 1 for SVD)
     dim_counter=1;
 
     methods = {'PCA','SVD'};
@@ -89,11 +94,11 @@ function DimensionalityReductionModule(varargin)
 %         varExplained = 100 * variances./sum(variances);
         Variance=cumsum(variances)./sum(variances);    %base 100
       end
-      for threshold = 96:99
-        target_dimensions(dim_counter) = find(Variance >= threshold/100,1); % use find to get first dimension count that hits threshold
+      for threshold = varianceThresholds
+        dynamicallySelectedDimensions(dim_counter) = find(Variance >= threshold,1); % Use find() to get the first dimension count that hits threshold
         dim_counter=dim_counter+1;
       end
-      if plt ~= runStatus.skip
+      if plotDimensionSelection ~= runStatus.skip
         h = figure();
         set(h, 'Visible', 'off');
         plot(Variance,'DisplayName','Variance','YDataSource','Variance');
@@ -101,7 +106,7 @@ function DimensionalityReductionModule(varargin)
         plotFilename = strcat(plotTitle,'-',int2str(numSegments),'x',int2str(numSegments));
         plotFilePath = fullfile(ouputFolder,plotFilename);
         title(plotTitle);  
-        if ~exist(plotFilePath,'file') || plt==runStatus.overwrite
+        if ~exist(plotFilePath,'file') || plotDimensionSelection==runStatus.overwrite
             saveas(h,plotFilePath,'jpg');
         end
         close(h);
@@ -122,12 +127,13 @@ function DimensionalityReductionModule(varargin)
         plotFilename=strcat(plotTitle,'-',int2str(numSegments),'x',int2str(numSegments));
         plotFilePath = fullfile(ouputFolder,plotFilename);
         title(plotTitle);
-        if ~exist(plotFilePath,'file') || plt==runStatus.overwrite
+        if ~exist(plotFilePath,'file') || plotDimensionSelection==runStatus.overwrite
             saveas(h,plotFilePath,'jpg');
         end
         close(h);
       end
     end
+    target_dimensions = horzcat(fixedDimensions,dynamicallySelectedDimensions);
     fprintf(1,'Targeted dimensions for experimentation: %s\n\n', num2str(target_dimensions));
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -156,11 +162,11 @@ function DimensionalityReductionModule(varargin)
 
     %% Actual dimensionality reduction
     failedRuns = {};
-    if weka_write ~= runStatus.skip
+    if wekaWrite ~= runStatus.skip
         for numDims=target_dimensions  %Loop through the targeted dimensions
             for DR_method_num = 1:length(DR_functions) % Loop through dimensionality reduction techniques
                 NumberDRComps=numDims;
-                DRWekaAttributeNames = arrayfun(@num2str, 1:NumberDRComps, 'unif', 0); % just use 1,2,... for WekaAttribute names
+                DRWekaAttributeNames = arrayfun(@num2str, 1:NumberDRComps, 'unif', 0); % just use 1,2,... for Weka attribute names
 
                 wekaTrainTitle=sprintf('67-33-%s-%s Components Training N-%d-Feature-All-%dx%d',dataSet,DR_methodNames{DR_method_num},NumberDRComps,numSegments,numSegments);
                 wekaTrainFilePath=fullfile(DR_outputDir,[wekaTrainTitle,'.arff']);
@@ -169,7 +175,7 @@ function DimensionalityReductionModule(varargin)
                 wekaTestFilePath=fullfile(DR_outputDir,[wekaTestTitle,'.arff']);
 
                 % can only skip if both outputs exist
-                if exist(wekaTrainFilePath,'file') && exist(wekaTestFilePath,'file') && weka_write == runStatus.runIfMissing
+                if exist(wekaTrainFilePath,'file') && exist(wekaTestFilePath,'file') && wekaWrite == runStatus.runIfMissing
                     continue
                 end
                 

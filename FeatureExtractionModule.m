@@ -15,7 +15,9 @@
 %
 %    You should have received a copy of the GNU General Public License
 %    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-function FeatureExtractionModule(varargin)
+%
+%
+%
 %  FeatureExtractionModule()
 %   Runs the Feature Extraction Module of the
 %   IMAGEFarmer-Rewrite CBIR building framework.
@@ -28,7 +30,8 @@ function FeatureExtractionModule(varargin)
 %   fields provided in the struct alt_config and substitutes them for those
 %   in the function file, making it easier to adjust one or two options on
 %   a run by run basis.
-%
+%function FeatureExtractionModule(varargin)
+
     if nargin == 1
       alt_config = varargin{1};
     else
@@ -39,10 +42,10 @@ function FeatureExtractionModule(varargin)
     config_ops = cbir_config(alt_config);
     %%% Global settings
     numSegments = config_ops.numSegments;
-    sizeSegments = config_ops.sizeSegments;
-    numCells = config_ops.numCells;
+    sizeSegments = 1/numSegments;
+    numCells = numSegments*numSegments;
     dataSet = config_ops.dataSet;
-    exten = config_ops.exten;
+    exten = config_ops.extension;
     datasetDir = config_ops.datasetDir;
     outputDir = config_ops.outputDir;
     if ~exist(outputDir,'dir')
@@ -68,13 +71,24 @@ function FeatureExtractionModule(varargin)
 
     %% data setup
     if ~useFile
-      %% build list of classes assuming directory structure
+      %% build list of images and class labels from directory structure
+      %% assumed format is
+      %%
+      %% top folder (datasetDir)
+      %%   folder named after class A
+      %%     image of class A
+      %%     image of class A
+      %%   folder named after class B
+      %%     image of class B
+      %%     image of class B
+      %%   etc.
+      %%
       if ~exist(datasetDir,'dir')
          error('Input directory not found:\n\t%s ',datasetDir);
       end
       classes = dir(datasetDir);
       classes = classes([classes.isdir]) ;
-      classes = {classes(3:end).name};
+      classes = {classes(3:end).name}; % first two are always '.' and '..';
       imageFileNames = {} ;
       imageClassLabels = {} ;
 
@@ -86,14 +100,14 @@ function FeatureExtractionModule(varargin)
       end
       imageClassLabels = cat(2, imageClassLabels{:});
     else
-     %% build List of classes assuming file list
+     %% build List of classes from file list
       disp('importing image list from file');
       f = fopen(imagesfile);
       M = textscan(f,'%s','Delimiter','\n');
       fclose(f);
       M = M{1};
-      imageFileNames = M(1:3:end);
-      imageClassLabels = M(3:3:end);
+      imageFileNames = M(1:2:end);
+      imageClassLabels = M(2:2:end);
       classes = unique(imageClassLabels);
     end
     numImages = length(imageFileNames);

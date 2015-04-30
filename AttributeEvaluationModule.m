@@ -15,6 +15,9 @@
 %
 %    You should have received a copy of the GNU General Public License
 %    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+%
+%
+%
 %  AttributeEvaluationModule()
 %   Runs the Attribute Evaluation Module of the
 %   IMAGEFarmer-Rewrite CBIR building framework.
@@ -69,16 +72,16 @@ function AttributeEvaluationModule(varargin)
 
     %% Make and save the intra class plots
     for classCounter = 1:numClasses
-        X = averageCorrelation(classCounter,:);
-        intraCorrMat = squareform(pdist(X(:)));
+        singleClassCorrelation = averageCorrelation(classCounter,:);
+        intraCorrMat = squareform(pdist(singleClassCorrelation(:)));
         intraCorrDistMat = 1-intraCorrMat;
         savePlot('IntraClass',classCounter,intraCorrDistMat)
     end
     %% Make and save the inter class plots
     derp = zeros(numClasses,numFeatures,numClasses);
     for feat = 1:numFeatures
-        X = averageCorrelation(:,feat);
-        derp(:,feat,:) = squareform(pdist(X(:)));
+        featureCorrelation = averageCorrelation(:,feat);
+        derp(:,feat,:) = squareform(pdist(featureCorrelation(:)));
     end
     classCompare = mean(derp,3);
     for classCounter = 1:numClasses
